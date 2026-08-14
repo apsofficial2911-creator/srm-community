@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SRM Ramapuram | Batch 2026–2030</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+
+<body>
+
+<header class="navbar">
+
+    <div class="brand">
+
+        <div class="logo">
+            SRM
+        </div>
+
+        <div>
+            <strong>SRM Ramapuram</strong>
+            <span>Batch 2026–2030</span>
+        </div>
+
+    </div>
+
+    <div class="member-count">
+
+        <strong id="memberCount">0</strong>
+
+        <span>Members</span>
+
+    </div>
+
+</header>
+
+
+<main>
+
+    <section class="hero">
+
+        <div class="eyebrow">
+            MEMBER DIRECTORY
+        </div>
+
+        <h1>
+            Meet your batch.
+        </h1>
+
+        <p>
+            Discover your batchmates, their skills and interests
+            while respecting everyone's privacy choices.
+        </p>
+
+    </section>
+
+
+    <section class="search-area">
+
+        <input
+            type="text"
+            id="search"
+            placeholder="Search name, branch, skill or interest..."
+        >
+
+        <select id="branchFilter">
+
+            <option value="">
+                All Branches
+            </option>
+
+        </select>
+
+    </section>
+
+
+    <section
+        id="members"
+        class="members-grid"
+    >
+
+        <div class="loading">
+            Loading members...
+        </div>
+
+    </section>
+
+</main>
+
+
+<script>
+
+let members = [];
+
+
+// =====================================================
+// ESCAPE HTML
+// =====================================================
+
+function escapeHTML(value) {
+
+    return String(value || "")
+        .replace(/[&<>"']/g, function(character) {
+
+            const characters = {
+
+                "&": "&amp;",
+                "<": "&lt;",
+                ">": "&gt;",
+                '"': "&quot;",
+                "'": "&#039;"
+
+            };
+
+            return characters[character];
+
+        });
+
+}
+
+
+// =====================================================
+// INITIALS
+// =====================================================
+
+function getInitials(name) {
+
+    if (!name) {
+        return "?";
+    }
+
+    return name
+        .split(" ")
+        .filter(Boolean)
+        .map(word => word[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase();
+
+}
+
+
+// =====================================================
+// CREATE BRANCH FILTER
+// =====================================================
+
+function createBranchFilter() {
+
+    const select =
+        document.getElementById("branchFilter");
+
+    const branches = [
+        ...new Set(
+            members
+                .map(member => member.branch)
+                .filter(branch => branch)
+        )
+    ];
+
+    branches.sort();
+
+    branches.forEach(branch => {
+
+        const option =
+            document.createElement("option");
+
+        option.value = branch;
+
+        option.textContent = branch;
+
+        select.appendChild(option);
+
+    });
+
+}
+
+
+// =====================================================
+// SEARCH
+// =====================================================
+
+function searchMembers() {
+
+    const search =
+        document
+            .getElementById("search")
+            .value
+            .toLowerCase()
+            .trim();
+
+
+    const branch =
+        document
+            .getElementById("branchFilter")
+            .value;
+
+
+    const filtered =
+        members.filter(member => {
+
+            const searchable = [
+
+                member.name,
+
+                member.branch,
+
+                member.section,
+
+                member.hometown,
+
+                ...(member.skills || []),
+
+                ...(member.interests || [])
+
+            ]
+            .join(" ")
+            .toLowerCase();
+
+
+            const matchesSearch =
+                searchable.includes(search);
+
+
+            const matchesBranch =
+                !branch ||
+                member.branch === branch;
+
+
+            return matchesSearch && matchesBranch;
+
+        });
+
+
+    displayMembers(filtered);
+
+}
+
+
+// =====================================================
+// DISPLAY MEMBERS
+// =====================================================
+
+function displayMembers(list) {
+
+    const container =
+        document.getElementById("members");
+
+
+    document.getElementById("memberCount")
+        .textContent = list.length;
+
+
+    if (list.length === 0) {
+
+        container.innerHTML = `
+
+            <div class="empty">
+
+                <h2>
+                    No members found
+                </h2>
+
+                <p>
+                    No profiles match your search.
+                </p>
+
+            </div>
+
+        `;
+
+        return;
+
+    }
+
+
+    container.innerHTML = list.map(member => {
+
+        const initials =
+            getInitials(member.name);
+
+
+        const skills =
+            (member.skills || [])
+                .map(skill => {
+
+                    return `
+                        <span class="tag">
+                            ${escapeHTML(skill)}
+                        </span>
+                    `;
+
+                })
+                .join("");
+
+
+        const interests =
+            (member.interests || [])
+                .map(interest => {
+
+                    return `
+                        <span class="tag interest">
+                            ${escapeHTML(interest)}
+                        </span>
+                    `;
+
+                })
+                .join("");
+
+
+        const instagram =
+            member.instagram
+            ? `
+
+                <a
+                    href="https://instagram.com/${encodeURIComponent(
+                        member.instagram.replace("@", "")
+                    )}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Instagram
+                </a>
+
+              `
+            : "";
+
+
+        const linkedin =
+            member.linkedin
+            ? `
+
+                <a
+                    href="${escapeHTML(member.linkedin)}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    LinkedIn
+                </a>
+
+              `
+            : "";
+
+
+        return `
+
+            <article class="member-card">
+
+                <div class="profile-header">
+
+                    <div class="avatar">
+
+                        ${escapeHTML(initials)}
+
+                    </div>
+
+
+                    <div>
+
+                        <h2>
+                            ${escapeHTML(member.name)}
+                        </h2>
+
+
+                        ${
+                            member.branch
+                            ? `
+                                <p>
+                                    ${escapeHTML(member.branch)}
+                                </p>
+                              `
+                            : ""
+                        }
+
+                    </div>
+
+                </div>
+
+
+                ${
+                    member.section
+                    ? `
+                        <div class="detail">
+                            📚 Section:
+                            ${escapeHTML(member.section)}
+                        </div>
+                      `
+                    : ""
+                }
+
+
+                ${
+                    member.hometown
+                    ? `
+                        <div class="detail">
+                            📍
+                            ${escapeHTML(member.hometown)}
+                        </div>
+                      `
+                    : ""
+                }
+
+
+                ${
+                    member.bio
+                    ? `
+                        <p class="bio">
+                            ${escapeHTML(member.bio)}
+                        </p>
+                      `
+                    : ""
+                }
+
+
+                ${
+                    skills
+                    ? `
+                        <div class="tags">
+                            ${skills}
+                        </div>
+                      `
+                    : ""
+                }
+
+
+                ${
+                    interests
+                    ? `
+                        <div class="tags">
+                            ${interests}
+                        </div>
+                      `
+                    : ""
+                }
+
+
+                ${
+                    instagram || linkedin
+                    ? `
+                        <div class="social">
+                            ${instagram}
+                            ${linkedin}
+                        </div>
+                      `
+                    : ""
+                }
+
+            </article>
+
+        `;
+
+    }).join("");
+
+}
+
+
+// =====================================================
+// LOAD MEMBERS FROM FASTAPI
+// =====================================================
+
+async function loadMembers() {
+
+    const container =
+        document.getElementById("members");
+
+
+    try {
+
+        console.log("Requesting /api/members...");
+
+
+        const response =
+            await fetch("/api/members");
+
+
+        console.log(
+            "API response status:",
+            response.status
+        );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "API returned HTTP " + response.status
+            );
+
+        }
+
+
+        members =
+            await response.json();
+
+
+        console.log(
+            "Members received:",
+            members
+        );
+
+
+        createBranchFilter();
+
+        displayMembers(members);
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "Could not load members:",
+            error
+        );
+
+
+        container.innerHTML = `
+
+            <div class="empty">
+
+                <h2>
+                    Unable to load members
+                </h2>
+
+                <p>
+                    Check the browser console for details.
+                </p>
+
+            </div>
+
+        `;
+
+    }
+
+}
+
+
+// =====================================================
+// EVENT LISTENERS
+// =====================================================
+
+document
+    .getElementById("search")
+    .addEventListener(
+        "input",
+        searchMembers
+    );
+
+
+document
+    .getElementById("branchFilter")
+    .addEventListener(
+        "change",
+        searchMembers
+    );
+
+
+// =====================================================
+// START
+// =====================================================
+
+loadMembers();
+
+</script>
+
+</body>
+
+</html>

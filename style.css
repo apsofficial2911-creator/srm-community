@@ -1,0 +1,561 @@
+/* =====================================================
+   GLOBAL
+===================================================== */
+
+:root {
+
+    font-family:
+        Inter,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+    color: #17221b;
+
+    background: #f4f7f4;
+}
+
+
+* {
+
+    box-sizing: border-box;
+
+}
+
+
+body {
+
+    margin: 0;
+
+}
+
+
+/* =====================================================
+   NAVBAR
+===================================================== */
+
+.navbar {
+
+    height: 76px;
+
+    padding:
+        0 6%;
+
+    background: white;
+
+    border-bottom:
+        1px solid #e2e8e3;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+}
+
+
+.brand {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+}
+
+
+.logo {
+
+    width: 44px;
+
+    height: 44px;
+
+    border-radius: 13px;
+
+    display: grid;
+
+    place-items: center;
+
+    background: #1f7a4d;
+
+    color: white;
+
+    font-weight: 900;
+
+    font-size: 12px;
+
+}
+
+
+.brand strong {
+
+    display: block;
+
+}
+
+
+.brand span {
+
+    display: block;
+
+    color: #7a857e;
+
+    font-size: 12px;
+
+    margin-top: 3px;
+
+}
+
+
+.member-count {
+
+    text-align: right;
+
+}
+
+
+.member-count strong {
+
+    display: block;
+
+    font-size: 22px;
+
+}
+
+
+.member-count span {
+
+    color: #7a857e;
+
+    font-size: 12px;
+
+}
+
+
+/* =====================================================
+   MAIN
+===================================================== */
+
+main {
+
+    width:
+        min(1180px, 90%);
+
+    margin:
+        auto;
+
+}
+
+
+/* =====================================================
+   HERO
+===================================================== */
+
+.hero {
+
+    padding:
+        65px 0 35px;
+
+}
+
+
+.eyebrow {
+
+    color:
+        #1f7a4d;
+
+    font-size:
+        12px;
+
+    font-weight:
+        900;
+
+    letter-spacing:
+        2px;
+
+}
+
+
+.hero h1 {
+
+    margin:
+        8px 0;
+
+    font-size:
+        clamp(40px, 6vw, 64px);
+
+    letter-spacing:
+        -2px;
+
+}
+
+
+.hero p {
+
+    max-width:
+        650px;
+
+    color:
+        #68736c;
+
+    font-size:
+        17px;
+
+    line-height:
+        1.6;
+
+}
+
+
+/* =====================================================
+   SEARCH
+===================================================== */
+
+.search-area {
+
+    display:
+        flex;
+
+    gap:
+        12px;
+
+    margin-bottom:
+        25px;
+
+}
+
+
+.search-area input,
+.search-area select {
+
+    border:
+        1px solid #d7ded8;
+
+    border-radius:
+        12px;
+
+    padding:
+        13px 15px;
+
+    background:
+        white;
+
+    font:
+        inherit;
+
+}
+
+
+.search-area input {
+
+    flex:
+        1;
+
+}
+
+
+/* =====================================================
+   MEMBER GRID
+===================================================== */
+
+.members-grid {
+
+    display:
+        grid;
+
+    grid-template-columns:
+        repeat(
+            auto-fill,
+            minmax(275px, 1fr)
+        );
+
+    gap:
+        18px;
+
+    padding-bottom:
+        70px;
+
+}
+
+
+/* =====================================================
+   MEMBER CARD
+===================================================== */
+
+.member-card {
+
+    background:
+        white;
+
+    border:
+        1px solid #e1e7e2;
+
+    border-radius:
+        20px;
+
+    padding:
+        21px;
+
+    box-shadow:
+        0 8px 28px
+        rgba(20, 40, 25, .04);
+
+}
+
+
+.profile-header {
+
+    display:
+        flex;
+
+    align-items:
+        center;
+
+    gap:
+        13px;
+
+    margin-bottom:
+        16px;
+
+}
+
+
+.avatar {
+
+    width:
+        56px;
+
+    height:
+        56px;
+
+    border-radius:
+        50%;
+
+    background:
+        #e0eee5;
+
+    color:
+        #1f7a4d;
+
+    display:
+        grid;
+
+    place-items:
+        center;
+
+    font-weight:
+        900;
+
+}
+
+
+.member-card h2 {
+
+    margin:
+        0;
+
+    font-size:
+        19px;
+
+}
+
+
+.profile-header p {
+
+    margin:
+        4px 0 0;
+
+    color:
+        #6e7972;
+
+    font-size:
+        13px;
+
+}
+
+
+/* =====================================================
+   DETAILS
+===================================================== */
+
+.detail {
+
+    color:
+        #59645d;
+
+    font-size:
+        13px;
+
+    margin:
+        7px 0;
+
+}
+
+
+.bio {
+
+    color:
+        #5c675f;
+
+    font-size:
+        14px;
+
+    line-height:
+        1.55;
+
+}
+
+
+/* =====================================================
+   TAGS
+===================================================== */
+
+.tags {
+
+    display:
+        flex;
+
+    flex-wrap:
+        wrap;
+
+    gap:
+        6px;
+
+    margin-top:
+        12px;
+
+}
+
+
+.tag {
+
+    background:
+        #edf5ef;
+
+    color:
+        #246a45;
+
+    padding:
+        5px 8px;
+
+    border-radius:
+        999px;
+
+    font-size:
+        11px;
+
+}
+
+
+.interest {
+
+    background:
+        #f0f2f0;
+
+    color:
+        #68736c;
+
+}
+
+
+/* =====================================================
+   SOCIAL
+===================================================== */
+
+.social {
+
+    display:
+        flex;
+
+    gap:
+        14px;
+
+    margin-top:
+        17px;
+
+}
+
+
+.social a {
+
+    color:
+        #1f7a4d;
+
+    font-size:
+        13px;
+
+    font-weight:
+        700;
+
+    text-decoration:
+        none;
+
+}
+
+
+.social a:hover {
+
+    text-decoration:
+        underline;
+
+}
+
+
+/* =====================================================
+   EMPTY
+===================================================== */
+
+.empty {
+
+    background:
+        white;
+
+    border:
+        1px solid #e1e7e2;
+
+    border-radius:
+        18px;
+
+    padding:
+        35px;
+
+    text-align:
+        center;
+
+}
+
+
+/* =====================================================
+   MOBILE
+===================================================== */
+
+@media (max-width: 650px) {
+
+    .navbar {
+
+        padding:
+            0 4%;
+
+    }
+
+
+    main {
+
+        width:
+            92%;
+
+    }
+
+
+    .search-area {
+
+        flex-direction:
+            column;
+
+    }
+
+}
