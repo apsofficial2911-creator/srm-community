@@ -1,5 +1,6 @@
 import os
 import time
+import json
 
 import gspread
 
@@ -8,9 +9,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 
 from google.oauth2.service_account import Credentials
-from fastapi.templating import Jinja2Templates
-
-templates = Jinja2Templates(directory="templates")
 
 
 # ============================================================
@@ -21,22 +19,22 @@ GOOGLE_SHEET_ID = "1ul2El68A2ofpZg4qXo79GK2NDHY__jzTmGojV5oEpVI"
 
 GOOGLE_WORKSHEET_NAME = "Form Responses 1"
 
-GOOGLE_CREDENTIALS_FILE = "service-account.json"
-
 CACHE_TIME = 60
 
 
 # ============================================================
-# FASTAPI SETUP
+# FASTAPI
 # ============================================================
 
 app = FastAPI(
     title="SRM Ramapuram Member Directory"
 )
 
+
 templates = Jinja2Templates(
     directory="templates"
 )
+
 
 app.mount(
     "/static",
@@ -55,40 +53,75 @@ last_update = 0
 
 
 # ============================================================
-# CONNECT TO GOOGLE SHEETS
+# GOOGLE SHEETS CONNECTION
 # ============================================================
 
 def connect_to_google_sheet():
+
+    # Render will provide this environment variable.
+    credentials_json = os.getenv(
+        "GOOGLE_SERVICE_ACCOUNT"
+    )
+
+    if not credentials_json:
+
+        raise RuntimeError(
+            "GOOGLE_SERVICE_ACCOUNT environment variable is not set."
+        )
+
+
+    try:
+
+        credentials_info = json.loads(
+            credentials_json
+        )
+
+    except json.JSONDecodeError as error:
+
+        raise RuntimeError(
+            "GOOGLE_SERVICE_ACCOUNT contains invalid JSON."
+        ) from error
+
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets.readonly"
     ]
 
-    credentials = Credentials.from_service_account_file(
-        GOOGLE_CREDENTIALS_FILE,
-        scopes=scopes
+
+    credentials = (
+        Credentials.from_service_account_info(
+            credentials_info,
+            scopes=scopes
+        )
     )
 
-    client = gspread.authorize(credentials)
+
+    client = gspread.authorize(
+        credentials
+    )
+
 
     spreadsheet = client.open_by_key(
         GOOGLE_SHEET_ID
     )
 
+
     worksheet = spreadsheet.worksheet(
         GOOGLE_WORKSHEET_NAME
     )
+
 
     return worksheet
 
 
 # ============================================================
-# HELPER FUNCTIONS
+# DATA CLEANING
 # ============================================================
 
 def clean(value):
 
     if value is None:
+
         return ""
 
     return str(value).strip()
@@ -97,7 +130,9 @@ def clean(value):
 def split_answers(value):
 
     if not value:
+
         return []
+
 
     return [
         item.strip()
@@ -107,7 +142,7 @@ def split_answers(value):
 
 
 # ============================================================
-# READ GOOGLE SHEET
+# READ STUDENTS
 # ============================================================
 
 def read_students():
@@ -118,14 +153,21 @@ def read_students():
 
     students = []
 
-    for row_number, row in enumerate(rows, start=2):
+
+    for row_number, row in enumerate(
+        rows,
+        start=2
+    ):
 
         name = clean(
             row.get("Full Name")
         )
 
+
         # Ignore completely empty rows
+
         if not name:
+
             continue
 
 
@@ -141,19 +183,27 @@ def read_students():
                 )
             ),
 
-            # PRIVATE
+
+            # =================================================
+            # PRIVATE INFORMATION
+            # =================================================
+
             "student_id": clean(
                 row.get(
                     "SRM Registration / Student ID"
                 )
             ),
 
-            # PRIVATE
             "whatsapp": clean(
                 row.get(
                     "WhatsApp Number"
                 )
             ),
+
+
+            # =================================================
+            # BASIC INFORMATION
+            # =================================================
 
             "branch": clean(
                 row.get(
@@ -178,6 +228,11 @@ def read_students():
                     "Hometown"
                 )
             ),
+
+
+            # =================================================
+            # COMMUNITY INFORMATION
+            # =================================================
 
             "skills": split_answers(
                 row.get(
@@ -209,7 +264,11 @@ def read_students():
                 )
             ),
 
+
+            # =================================================
             # PRIVACY SETTINGS
+            # =================================================
+
             "visible_fields": split_answers(
                 row.get(
                     "Information I am comfortable displaying to batch members"
@@ -223,27 +282,46 @@ def read_students():
             )
         }
 
-        students.append(student)
+
+        students.append(
+            student
+        )
+
 
     return students
 
 
 # ============================================================
-# PRIVACY FILTER
+# PRIVACY CHECK
 # ============================================================
 
-def field_is_visible(student, field):
+def field_is_visible(
+    student,
+    field
+):
 
-    # If member doesn't want to be discoverable
-    if student["discoverable"].startswith("No"):
+    # Member doesn't want to be discoverable.
+
+    if student["discoverable"].startswith(
+        "No"
+    ):
 
         return False
 
+
     # Only display fields explicitly selected
+    # by the member.
+
     return field in student["visible_fields"]
 
 
-def create_public_profile(student):
+# ============================================================
+# CREATE PUBLIC PROFILE
+# ============================================================
+
+def create_public_profile(
+    student
+):
 
     profile = {
 
@@ -251,7 +329,10 @@ def create_public_profile(student):
 
         "name": (
             student["name"]
-            if field_is_visible(student, "Name")
+            if field_is_visible(
+                student,
+                "Name"
+            )
             else "Private Member"
         ),
 
@@ -273,75 +354,123 @@ def create_public_profile(student):
     }
 
 
+    # ========================================================
+    # BRANCH
+    # ========================================================
+
     if field_is_visible(
         student,
         "Branch / Course"
     ):
 
-        profile["branch"] = student["branch"]
+        profile["branch"] = (
+            student["branch"]
+        )
 
+
+    # ========================================================
+    # SECTION
+    # ========================================================
 
     if field_is_visible(
         student,
         "Section"
     ):
 
-        profile["section"] = student["section"]
+        profile["section"] = (
+            student["section"]
+        )
 
+
+    # ========================================================
+    # HOMETOWN
+    # ========================================================
 
     if field_is_visible(
         student,
         "Hometown"
     ):
 
-        profile["hometown"] = student["hometown"]
+        profile["hometown"] = (
+            student["hometown"]
+        )
 
+
+    # ========================================================
+    # SKILLS
+    # ========================================================
 
     if field_is_visible(
         student,
         "Skills"
     ):
 
-        profile["skills"] = student["skills"]
+        profile["skills"] = (
+            student["skills"]
+        )
 
+
+    # ========================================================
+    # INTERESTS
+    # ========================================================
 
     if field_is_visible(
         student,
         "Interests"
     ):
 
-        profile["interests"] = student["interests"]
+        profile["interests"] = (
+            student["interests"]
+        )
 
+
+    # ========================================================
+    # BIO
+    # ========================================================
 
     if field_is_visible(
         student,
         "About Me"
     ):
 
-        profile["bio"] = student["bio"]
+        profile["bio"] = (
+            student["bio"]
+        )
 
+
+    # ========================================================
+    # INSTAGRAM
+    # ========================================================
 
     if field_is_visible(
         student,
         "Instagram"
     ):
 
-        profile["instagram"] = student["instagram"]
+        profile["instagram"] = (
+            student["instagram"]
+        )
 
+
+    # ========================================================
+    # LINKEDIN
+    # ========================================================
 
     if field_is_visible(
         student,
         "LinkedIn"
     ):
 
-        profile["linkedin"] = student["linkedin"]
+        profile["linkedin"] = (
+            student["linkedin"]
+        )
 
 
     return profile
 
 
 # ============================================================
-# GET MEMBERS
+# GET MEMBERS WITH CACHE
 # ============================================================
 
 def get_members():
@@ -349,11 +478,16 @@ def get_members():
     global cached_members
     global last_update
 
+
     current_time = time.time()
 
 
-    # Use cached data
-    if current_time - last_update < CACHE_TIME:
+    # Use cached data if it is still fresh.
+
+    if (
+        current_time - last_update
+        < CACHE_TIME
+    ):
 
         return cached_members
 
@@ -362,8 +496,13 @@ def get_members():
 
 
     cached_members = [
-        create_public_profile(student)
+
+        create_public_profile(
+            student
+        )
+
         for student in students
+
     ]
 
 
@@ -378,36 +517,18 @@ def get_members():
 # ============================================================
 
 @app.get("/")
-def home(request: Request):
+def home(
+    request: Request
+):
+
     return templates.TemplateResponse(
         request=request,
         name="web.html"
     )
 
-@app.get("/test-sheet")
-def test_sheet():
 
-    worksheet = connect_to_google_sheet()
-
-    rows = worksheet.get_all_records()
-
-    return {
-        "number_of_rows": len(rows),
-        "rows": rows
-    }
-@app.get("/test-sheet")
-def test_sheet():
-
-    worksheet = connect_to_google_sheet()
-
-    rows = worksheet.get_all_records()
-
-    return {
-        "number_of_rows": len(rows),
-        "rows": rows
-    }
 # ============================================================
-# API
+# PUBLIC MEMBER API
 # ============================================================
 
 @app.get("/api/members")
@@ -429,7 +550,7 @@ def health():
 
 
 # ============================================================
-# START SERVER
+# LOCAL DEVELOPMENT
 # ============================================================
 
 if __name__ == "__main__":
@@ -442,4 +563,3 @@ if __name__ == "__main__":
         port=8000,
         reload=True
     )
-
