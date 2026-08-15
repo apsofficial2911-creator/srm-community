@@ -465,79 +465,93 @@ function displayMembers(list) {
 
 async function loadMembers() {
 
-    const container =
-        document.getElementById("members");
+    const container = document.getElementById("members");
 
+    // -----------------------------
+    // STEP 1: GET DATA FROM API
+    // -----------------------------
 
     try {
 
         console.log("Requesting /api/members...");
 
+        const response = await fetch("/api/members");
 
-        const response =
-            await fetch("/api/members");
-
-
-        console.log(
-            "API response status:",
-            response.status
-        );
-
+        console.log("API status:", response.status);
 
         if (!response.ok) {
-
             throw new Error(
                 "API returned HTTP " + response.status
             );
-
         }
 
+        const data = await response.json();
 
-        members =
-            await response.json();
+        console.log("API DATA:", data);
 
+        if (!Array.isArray(data)) {
+            throw new Error(
+                "API did not return an array"
+            );
+        }
+
+        members = data;
 
         console.log(
-            "Members received:",
-            members
+            "Successfully loaded",
+            members.length,
+            "members"
         );
 
+    } catch (error) {
+
+        console.error("API ERROR:", error);
+
+        container.innerHTML = `
+            <div class="empty">
+                <h2>Unable to load members</h2>
+                <p>${escapeHTML(error.message)}</p>
+            </div>
+        `;
+
+        return;
+    }
+
+
+    // -----------------------------
+    // STEP 2: RENDER DATA
+    // -----------------------------
+
+    try {
+
+        console.log("Creating branch filter...");
 
         createBranchFilter();
 
+        console.log("Displaying members...");
+
         displayMembers(members);
 
+        console.log("Members displayed successfully.");
 
-    }
-
-    catch (error) {
+    } catch (error) {
 
         console.error(
-            "Could not load members:",
+            "RENDERING ERROR:",
             error
         );
 
-
         container.innerHTML = `
-
             <div class="empty">
-
-                <h2>
-                    Unable to load members
-                </h2>
+                <h2>Unable to display members</h2>
 
                 <p>
-                    Check the browser console for details.
+                    ${escapeHTML(error.message)}
                 </p>
-
             </div>
-
         `;
-
     }
-
 }
-
 
 // =====================================================
 // EVENT LISTENERS
