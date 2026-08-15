@@ -252,8 +252,12 @@ function displayMembers(list) {
         document.getElementById("members");
 
 
-    document.getElementById("memberCount")
-        .textContent = list.length;
+   const memberCount =
+    document.getElementById("memberCount");
+
+if (memberCount) {
+    memberCount.textContent = list.length;
+}
 
 
     if (list.length === 0) {
