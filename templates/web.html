@@ -99,9 +99,7 @@
 let members = [];
 
 
-// =====================================================
-// ESCAPE HTML
-// =====================================================
+
 
 function escapeHTML(value) {
 
@@ -125,9 +123,7 @@ function escapeHTML(value) {
 }
 
 
-// =====================================================
-// INITIALS
-// =====================================================
+
 
 function getInitials(name) {
 
@@ -146,9 +142,7 @@ function getInitials(name) {
 }
 
 
-// =====================================================
-// CREATE BRANCH FILTER
-// =====================================================
+
 
 function createBranchFilter() {
 
@@ -181,9 +175,7 @@ function createBranchFilter() {
 }
 
 
-// =====================================================
-// SEARCH
-// =====================================================
+
 
 function searchMembers() {
 
@@ -242,9 +234,6 @@ function searchMembers() {
 }
 
 
-// =====================================================
-// DISPLAY MEMBERS
-// =====================================================
 
 function displayMembers(list) {
 
@@ -463,18 +452,12 @@ if (memberCount) {
 }
 
 
-// =====================================================
-// LOAD MEMBERS FROM FASTAPI
-// =====================================================
 
 async function loadMembers() {
 
     const container = document.getElementById("members");
 
-    // -----------------------------
-    // STEP 1: GET DATA FROM API
-    // -----------------------------
-
+   
     try {
 
         console.log("Requesting /api/members...");
@@ -522,10 +505,7 @@ async function loadMembers() {
     }
 
 
-    // -----------------------------
-    // STEP 2: RENDER DATA
-    // -----------------------------
-
+   
     try {
 
         console.log("Creating branch filter...");
@@ -557,9 +537,7 @@ async function loadMembers() {
     }
 }
 
-// =====================================================
-// EVENT LISTENERS
-// =====================================================
+
 
 document
     .getElementById("search")
@@ -577,9 +555,7 @@ document
     );
 
 
-// =====================================================
-// START
-// =====================================================
+
 
 loadMembers();
 
