@@ -1,566 +1,646 @@
-<!DOCTYPE html>
-<html lang="en">
+import os
+import json
+import time
 
-<head>
-    <meta charset="UTF-8">
+import gspread
 
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 
-    <title>SRM Ramapuram | Batch 2026–2030</title>
-
-    <link rel="stylesheet" href="/static/style.css">
-    <link rel="image" href="/static/srmbatch.png" type="image/png">
-</head>
-
-
-<body>
-
-<header class="navbar">
-
-    <div class="brand">
-
-        <div class="logo">
-            SRM
-        </div>
-
-        <div>
-            <strong>SRM Ramapuram</strong>
-            <span>Batch 2026–2030</span>
-        </div>
-
-    </div>
-
-    <div class="member-count">
-
-        <strong id="memberCount">0</strong>
-
-        <span>Members</span>
-
-    </div>
-
-</header>
+from google.oauth2.service_account import Credentials
 
 
-<main>
+# =====================================================
+# CONFIGURATION
+# =====================================================
 
-    <section class="hero">
+GOOGLE_SHEET_ID = os.environ.get("GOOGLE_SHEET_ID")
 
-        <div class="eyebrow">
-            MEMBER DIRECTORY
-        </div>
+GOOGLE_WORKSHEET_NAME = os.environ.get(
+    "GOOGLE_WORKSHEET_NAME",
+    "Form Responses 1"
+)
 
-        <h1>
-            Meet your batch.
-        </h1>
+GOOGLE_SERVICE_ACCOUNT_JSON = os.environ.get(
+    "GOOGLE_SERVICE_ACCOUNT_JSON"
+)
 
-        <p>
-            Discover your batchmates, their skills and interests
-            while respecting everyone's privacy choices.
-        </p>
-
-    </section>
+CACHE_TIME = 60
 
 
-    <section class="search-area">
+# =====================================================
+# FASTAPI
+# =====================================================
 
-        <input
-            type="text"
-            id="search"
-            placeholder="Search name, branch, skill or interest..."
-        >
-
-        <select id="branchFilter">
-
-            <option value="">
-                All Branches
-            </option>
-
-        </select>
-
-    </section>
+app = FastAPI(
+    title="SRM Ramapuram Member Directory"
+)
 
 
-    <section
-        id="members"
-        class="members-grid"
-    >
-
-        <div class="loading">
-            Loading members...
-        </div>
-
-    </section>
-
-</main>
+templates = Jinja2Templates(
+    directory="templates"
+)
 
 
-<script>
-
-let members = [];
-
-
-
-
-function escapeHTML(value) {
-
-    return String(value || "")
-        .replace(/[&<>"']/g, function(character) {
-
-            const characters = {
-
-                "&": "&amp;",
-                "<": "&lt;",
-                ">": "&gt;",
-                '"': "&quot;",
-                "'": "&#039;"
-
-            };
-
-            return characters[character];
-
-        });
-
-}
+app.mount(
+    "/static",
+    StaticFiles(directory="static"),
+    name="static"
+)
 
 
+# =====================================================
+# CACHE
+# =====================================================
+
+cached_members = []
+
+last_update = 0
 
 
-function getInitials(name) {
+# =====================================================
+# GOOGLE SHEETS CONNECTION
+# =====================================================
 
-    if (!name) {
-        return "?";
-    }
+def connect_to_google_sheet():
 
-    return name
-        .split(" ")
-        .filter(Boolean)
-        .map(word => word[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase();
-
-}
-
-
-
-
-function createBranchFilter() {
-
-    const select =
-        document.getElementById("branchFilter");
-
-    const branches = [
-        ...new Set(
-            members
-                .map(member => member.branch)
-                .filter(branch => branch)
+    if not GOOGLE_SHEET_ID:
+        raise RuntimeError(
+            "GOOGLE_SHEET_ID environment variable is missing."
         )
-    ];
 
-    branches.sort();
+    if not GOOGLE_SERVICE_ACCOUNT_JSON:
+        raise RuntimeError(
+            "GOOGLE_SERVICE_ACCOUNT_JSON environment variable is missing."
+        )
 
-    branches.forEach(branch => {
 
-        const option =
-            document.createElement("option");
+    try:
 
-        option.value = branch;
+        service_account_info = json.loads(
+            GOOGLE_SERVICE_ACCOUNT_JSON
+        )
 
-        option.textContent = branch;
+    except json.JSONDecodeError as error:
 
-        select.appendChild(option);
+        raise RuntimeError(
+            "GOOGLE_SERVICE_ACCOUNT_JSON contains invalid JSON."
+        ) from error
 
-    });
 
-}
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets.readonly"
+    ]
 
 
+    credentials = (
+        Credentials.from_service_account_info(
+            service_account_info,
+            scopes=scopes
+        )
+    )
 
 
-function searchMembers() {
+    client = gspread.authorize(
+        credentials
+    )
 
-    const search =
-        document
-            .getElementById("search")
-            .value
-            .toLowerCase()
-            .trim();
 
+    spreadsheet = client.open_by_key(
+        GOOGLE_SHEET_ID
+    )
 
-    const branch =
-        document
-            .getElementById("branchFilter")
-            .value;
 
+    worksheet = spreadsheet.worksheet(
+        GOOGLE_WORKSHEET_NAME
+    )
 
-    const filtered =
-        members.filter(member => {
 
-            const searchable = [
+    return worksheet
 
-                member.name,
 
-                member.branch,
+# =====================================================
+# DATA CLEANING
+# =====================================================
 
-                member.section,
+def clean(value):
 
-                member.hometown,
+    if value is None:
+        return ""
 
-                ...(member.skills || []),
+    return str(value).strip()
 
-                ...(member.interests || [])
 
-            ]
-            .join(" ")
-            .toLowerCase();
+def split_answers(value):
 
+    if not value:
+        return []
 
-            const matchesSearch =
-                searchable.includes(search);
+    return [
+        item.strip()
+        for item in str(value).split(",")
+        if item.strip()
+    ]
 
 
-            const matchesBranch =
-                !branch ||
-                member.branch === branch;
+# =====================================================
+# READ GOOGLE SHEET
+# =====================================================
 
+def read_students():
 
-            return matchesSearch && matchesBranch;
+    worksheet = connect_to_google_sheet()
 
-        });
+    rows = worksheet.get_all_records()
 
+    students = []
 
-    displayMembers(filtered);
 
-}
+    for row_number, row in enumerate(
+        rows,
+        start=2
+    ):
 
+        name = clean(
+            row.get("Full Name")
+        )
 
 
-function displayMembers(list) {
+        # Ignore completely empty rows
 
-    const container =
-        document.getElementById("members");
-
-
-   const memberCount =
-    document.getElementById("memberCount");
-
-if (memberCount) {
-    memberCount.textContent = list.length;
-}
-
-
-    if (list.length === 0) {
-
-        container.innerHTML = `
-
-            <div class="empty">
-
-                <h2>
-                    No members found
-                </h2>
-
-                <p>
-                    No profiles match your search.
-                </p>
-
-            </div>
-
-        `;
-
-        return;
-
-    }
-
-
-    container.innerHTML = list.map(member => {
-
-        const initials =
-            getInitials(member.name);
-
-
-        const skills =
-            (member.skills || [])
-                .map(skill => {
-
-                    return `
-                        <span class="tag">
-                            ${escapeHTML(skill)}
-                        </span>
-                    `;
-
-                })
-                .join("");
-
-
-        const interests =
-            (member.interests || [])
-                .map(interest => {
-
-                    return `
-                        <span class="tag interest">
-                            ${escapeHTML(interest)}
-                        </span>
-                    `;
-
-                })
-                .join("");
-
-
-        const instagram =
-            member.instagram
-            ? `
-
-                <a
-                    href="https://instagram.com/${encodeURIComponent(
-                        member.instagram.replace("@", "")
-                    )}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    Instagram
-                </a>
-
-              `
-            : "";
-
-
-        const linkedin =
-            member.linkedin
-            ? `
-
-                <a
-                    href="${escapeHTML(member.linkedin)}"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    LinkedIn
-                </a>
-
-              `
-            : "";
-
-
-        return `
-
-            <article class="member-card">
-
-                <div class="profile-header">
-
-                    <div class="avatar">
-
-                        ${escapeHTML(initials)}
-
-                    </div>
-
-
-                    <div>
-
-                        <h2>
-                            ${escapeHTML(member.name)}
-                        </h2>
-
-
-                        ${
-                            member.branch
-                            ? `
-                                <p>
-                                    ${escapeHTML(member.branch)}
-                                </p>
-                              `
-                            : ""
-                        }
-
-                    </div>
-
-                </div>
-
-
-                ${
-                    member.section
-                    ? `
-                        <div class="detail">
-                            📚 Section:
-                            ${escapeHTML(member.section)}
-                        </div>
-                      `
-                    : ""
-                }
-
-
-                ${
-                    member.hometown
-                    ? `
-                        <div class="detail">
-                            📍
-                            ${escapeHTML(member.hometown)}
-                        </div>
-                      `
-                    : ""
-                }
-
-
-                ${
-                    member.bio
-                    ? `
-                        <p class="bio">
-                            ${escapeHTML(member.bio)}
-                        </p>
-                      `
-                    : ""
-                }
-
-
-                ${
-                    skills
-                    ? `
-                        <div class="tags">
-                            ${skills}
-                        </div>
-                      `
-                    : ""
-                }
-
-
-                ${
-                    interests
-                    ? `
-                        <div class="tags">
-                            ${interests}
-                        </div>
-                      `
-                    : ""
-                }
-
-
-                ${
-                    instagram || linkedin
-                    ? `
-                        <div class="social">
-                            ${instagram}
-                            ${linkedin}
-                        </div>
-                      `
-                    : ""
-                }
-
-            </article>
-
-        `;
-
-    }).join("");
-
-}
-
-
-
-async function loadMembers() {
-
-    const container = document.getElementById("members");
-
-   
-    try {
-
-        console.log("Requesting /api/members...");
-
-        const response = await fetch("/api/members");
-
-        console.log("API status:", response.status);
-
-        if (!response.ok) {
-            throw new Error(
-                "API returned HTTP " + response.status
-            );
+        if not name:
+            continue
+
+
+        student = {
+
+            "id": row_number,
+
+            "name": name,
+
+            "nickname": clean(
+                row.get(
+                    "Preferred Name / Nickname"
+                )
+            ),
+
+
+            # =========================================
+            # PRIVATE INFORMATION
+            # =========================================
+
+            "student_id": clean(
+                row.get(
+                    "SRM Registration / Student ID"
+                )
+            ),
+
+            "whatsapp": clean(
+                row.get(
+                    "WhatsApp Number"
+                )
+            ),
+
+
+            # =========================================
+            # PUBLIC-POSSIBLE INFORMATION
+            # =========================================
+
+            "branch": clean(
+                row.get(
+                    "Branch / Course"
+                )
+            ),
+
+            "section": clean(
+                row.get(
+                    "Section"
+                )
+            ),
+
+            "student_type": clean(
+                row.get(
+                    "Student Type"
+                )
+            ),
+
+            "hometown": clean(
+                row.get(
+                    "Hometown"
+                )
+            ),
+
+            "skills": split_answers(
+                row.get(
+                    "Skills"
+                )
+            ),
+
+            "interests": split_answers(
+                row.get(
+                    "Interests / Hobbies"
+                )
+            ),
+
+            "bio": clean(
+                row.get(
+                    "About Me"
+                )
+            ),
+
+            "instagram": clean(
+                row.get(
+                    "Instagram Username"
+                )
+            ),
+
+            "linkedin": clean(
+                row.get(
+                    "LinkedIn Profile"
+                )
+            ),
+
+
+            # =========================================
+            # PRIVACY SETTINGS
+            # =========================================
+
+            "visible_fields": split_answers(
+                row.get(
+                    "Information I am comfortable displaying to batch members"
+                )
+            ),
+
+            "discoverable": clean(
+                row.get(
+                    "Do you want your profile to be discoverable by other batch members?"
+                )
+            )
         }
 
-        const data = await response.json();
 
-        console.log("API DATA:", data);
+        students.append(
+            student
+        )
 
-        if (!Array.isArray(data)) {
-            throw new Error(
-                "API did not return an array"
-            );
-        }
 
-        members = data;
+    return students
 
-        console.log(
-            "Successfully loaded",
-            members.length,
-            "members"
-        );
 
-    } catch (error) {
+# =====================================================
+# PRIVACY CHECK
+# =====================================================
 
-        console.error("API ERROR:", error);
+def field_is_visible(
+    student,
+    field
+):
 
-        container.innerHTML = `
-            <div class="empty">
-                <h2>Unable to load members</h2>
-                <p>${escapeHTML(error.message)}</p>
-            </div>
-        `;
+    visible_fields = student.get(
+        "visible_fields",
+        []
+    )
 
-        return;
+
+    return field in visible_fields
+
+
+# =====================================================
+# CREATE PUBLIC PROFILE
+#
+# IMPORTANT:
+# PRIVATE INFORMATION NEVER ENTERS THIS OBJECT.
+# =====================================================
+
+def create_public_profile(student):
+
+    discoverable = student.get(
+        "discoverable",
+        ""
+    ).strip().lower()
+
+
+    # -----------------------------------------------
+    # Hidden profile
+    # -----------------------------------------------
+
+    if discoverable.startswith("no"):
+
+        return None
+
+
+    # -----------------------------------------------
+    # EMPTY PUBLIC PROFILE
+    # -----------------------------------------------
+
+    profile = {
+
+        "id": student["id"],
+
+        "name": "",
+
+        "nickname": "",
+
+        "branch": "",
+
+        "section": "",
+
+        "hometown": "",
+
+        "skills": [],
+
+        "interests": [],
+
+        "bio": "",
+
+        "instagram": "",
+
+        "linkedin": ""
     }
 
 
-   
-    try {
+    # -----------------------------------------------
+    # NAME
+    # -----------------------------------------------
 
-        console.log("Creating branch filter...");
+    if field_is_visible(
+        student,
+        "Name"
+    ):
 
-        createBranchFilter();
+        profile["name"] = student["name"]
 
-        console.log("Displaying members...");
 
-        displayMembers(members);
+    # -----------------------------------------------
+    # NICKNAME
+    # -----------------------------------------------
 
-        console.log("Members displayed successfully.");
+    if field_is_visible(
+        student,
+        "Preferred Name / Nickname"
+    ):
 
-    } catch (error) {
+        profile["nickname"] = student["nickname"]
 
-        console.error(
-            "RENDERING ERROR:",
-            error
-        );
 
-        container.innerHTML = `
-            <div class="empty">
-                <h2>Unable to display members</h2>
+    # -----------------------------------------------
+    # BRANCH
+    # -----------------------------------------------
 
-                <p>
-                    ${escapeHTML(error.message)}
-                </p>
-            </div>
-        `;
+    if field_is_visible(
+        student,
+        "Branch / Course"
+    ):
+
+        profile["branch"] = student["branch"]
+
+
+    # -----------------------------------------------
+    # SECTION
+    # -----------------------------------------------
+
+    if field_is_visible(
+        student,
+        "Section"
+    ):
+
+        profile["section"] = student["section"]
+
+
+    # -----------------------------------------------
+    # HOMETOWN
+    # -----------------------------------------------
+
+    if field_is_visible(
+        student,
+        "Hometown"
+    ):
+
+        profile["hometown"] = student["hometown"]
+
+
+    # -----------------------------------------------
+    # SKILLS
+    # -----------------------------------------------
+
+    if field_is_visible(
+        student,
+        "Skills"
+    ):
+
+        profile["skills"] = student["skills"]
+
+
+    # -----------------------------------------------
+    # INTERESTS
+    # -----------------------------------------------
+
+    if field_is_visible(
+        student,
+        "Interests"
+    ):
+
+        profile["interests"] = student["interests"]
+
+
+    # -----------------------------------------------
+    # ABOUT ME
+    # -----------------------------------------------
+
+    if field_is_visible(
+        student,
+        "About Me"
+    ):
+
+        profile["bio"] = student["bio"]
+
+
+    # -----------------------------------------------
+    # INSTAGRAM
+    # -----------------------------------------------
+
+    if field_is_visible(
+        student,
+        "Instagram"
+    ):
+
+        profile["instagram"] = student["instagram"]
+
+
+    # -----------------------------------------------
+    # LINKEDIN
+    # -----------------------------------------------
+
+    if field_is_visible(
+        student,
+        "LinkedIn"
+    ):
+
+        profile["linkedin"] = student["linkedin"]
+
+
+    return profile
+
+
+# =====================================================
+# GET MEMBERS
+# =====================================================
+
+def get_members():
+
+    global cached_members
+    global last_update
+
+
+    current_time = time.time()
+
+
+    # -----------------------------------------------
+    # CACHE
+    # -----------------------------------------------
+
+    if (
+        current_time - last_update
+        < CACHE_TIME
+    ):
+
+        return cached_members
+
+
+    # -----------------------------------------------
+    # READ PRIVATE SHEET
+    # -----------------------------------------------
+
+    students = read_students()
+
+
+    # -----------------------------------------------
+    # CREATE PUBLIC DATA
+    # -----------------------------------------------
+
+    public_members = []
+
+
+    for student in students:
+
+        profile = create_public_profile(
+            student
+        )
+
+
+        if profile is not None:
+
+            public_members.append(
+                profile
+            )
+
+
+    cached_members = public_members
+
+    last_update = current_time
+
+
+    return cached_members
+
+
+# =====================================================
+# SECURITY HEADERS
+# =====================================================
+
+@app.middleware("http")
+async def security_headers(
+    request: Request,
+    call_next
+):
+
+    response = await call_next(
+        request
+    )
+
+
+    response.headers[
+        "X-Content-Type-Options"
+    ] = "nosniff"
+
+
+    response.headers[
+        "X-Frame-Options"
+    ] = "DENY"
+
+
+    response.headers[
+        "Referrer-Policy"
+    ] = "strict-origin-when-cross-origin"
+
+
+    return response
+
+
+# =====================================================
+# HOME PAGE
+# =====================================================
+
+@app.get("/")
+def home(
+    request: Request
+):
+
+    return templates.TemplateResponse(
+        request=request,
+        name="web.html"
+    )
+
+
+# =====================================================
+# PUBLIC MEMBER API
+# =====================================================
+
+@app.get(
+    "/api/members"
+)
+def api_members():
+
+    members = get_members()
+
+
+    response = JSONResponse(
+        content=members
+    )
+
+
+    response.headers[
+        "Cache-Control"
+    ] = "no-store"
+
+
+    return response
+
+
+# =====================================================
+# HEALTH CHECK
+# =====================================================
+
+@app.get("/health")
+def health():
+
+    return {
+        "status": "running"
     }
-}
 
 
+# =====================================================
+# LOCAL DEVELOPMENT
+# =====================================================
 
-document
-    .getElementById("search")
-    .addEventListener(
-        "input",
-        searchMembers
-    );
+if __name__ == "__main__":
 
+    import uvicorn
 
-document
-    .getElementById("branchFilter")
-    .addEventListener(
-        "change",
-        searchMembers
-    );
-
-
-
-
-loadMembers();
-
-</script>
-
-</body>
-
-</html>
+    uvicorn.run(
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True
+    )
