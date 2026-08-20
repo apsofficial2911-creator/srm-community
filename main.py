@@ -30,9 +30,7 @@ GOOGLE_SERVICE_ACCOUNT_JSON = os.environ.get(
 CACHE_TIME = 60
 
 
-# =====================================================
-# FASTAPI
-# =====================================================
+
 
 app = FastAPI(
     title="SRM Ramapuram Member Directory"
